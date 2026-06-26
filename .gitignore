@@ -1,21 +1,34 @@
 # Dependencies
-node_modules/
+/node_modules
 .pnp
-.pnp.js
+.pnp.*
 
-# Build output
-dist/
-build/
-.next/
-out/
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+
+# Production build
+/build
+/dist
 
 # Environment variables — NEVER commit secrets (Gemini API key, etc.)
-.env
-.env.*
-!.env.example
+# `.env` holds ONLY non-secret defaults (DATABASE_URL, model names) and IS
+# committed so Prisma + fresh clones work out of the box. The Gemini key lives
+# only in `.env.local`, which is ignored here.
+.env*.local
+
+# Database (SQLite file + migrations journal artifacts)
+/prisma/dev.db
+/prisma/dev.db-journal
+*.db
+*.db-journal
 
 # Netlify
 .netlify/
+
+# Testing / coverage
+/coverage
 
 # Logs
 npm-debug.log*
@@ -23,8 +36,16 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 
+# Build scaffolding / scratch
+.claude-build/
+
 # OS / editor
 .DS_Store
 .vscode/
 .idea/
 *.swp
+*.pem
+.vercel
+
+# TS incremental build cache
+*.tsbuildinfo

@@ -1,0 +1,20 @@
+# Netlify auto-deploy config.
+#
+# IMPORTANT: v1 uses file-based SQLite, whose writes do NOT persist on
+# Netlify's ephemeral serverless filesystem. The build will succeed and the
+# UI will render, but mutations (autosave, scoring, etc.) won't stick in a
+# deployed environment. To make the deploy fully functional, swap the Prisma
+# datasource SQLite -> Postgres (the `userId` seam in the spec keeps this a
+# config change, not a rewrite). Local `npm run dev` works fully.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Prisma needs its engine available during build.
+  NODE_VERSION = "20"
+
+# The official Next.js runtime — Netlify auto-installs this, listed for clarity.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

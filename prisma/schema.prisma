@@ -1,0 +1,135 @@
+// Spike Engine — data model (§3 of the build spec).
+//
+// NOTE ON ENUMS: SQLite does not support native enum types in Prisma, so the
+// fields that the spec models as enums (ActivityCategory, ResearchOutput,
+// Authorship, OppType) are stored as `String`. The canonical allowed values
+// live in `lib/enums.ts` and are enforced with Zod at every boundary. This
+// keeps the SQLite zero-infra decision (§1) intact. Swapping to Postgres later
+// can promote these to real enums without changing query logic.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id            String   @id @default(cuid())
+  userId        String   @default("local")
+  name          String?
+  gradeLevel    Int? // 9..12
+  gradYear      Int?
+  gpaUnweighted Float?
+  gpaWeighted   Float?
+  rigor         String? // e.g. "5 APs taken, 4 more planned" — free text, summarized by LLM
+  satTotal      Int?
+  actComposite  Int?
+  intendedMajor String?
+  state         String?
+  contextNotes  String? // first-gen, constraints, etc. (optional, self-reported)
+  activities    Activity[]
+  synthesis     ProfileSynthesis?
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Activity {
+  id           String          @id @default(cuid())
+  userId       String          @default("local")
+  studentId    String
+  student      Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title        String
+  category     String // ActivityCategory enum value (see lib/enums.ts)
+  role         String?
+  description  String // what they did, in their words
+  startDate    DateTime?
+  endDate      DateTime? // null = ongoing
+  hoursPerWeek Float?
+  weeksPerYear Int?
+  evidenceUrl  String? // proof: publication link, repo, award page
+  spikeTheme   String? // user-tagged theme; LLM may suggest/override
+  research     ResearchDetail?
+  score        ActivityScore?
+  updatedAt    DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([studentId])
+}
+
+model ResearchDetail {
+  id           String   @id @default(cuid())
+  activityId   String   @unique
+  activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  outputType   String   @default("NONE") // ResearchOutput enum value
+  authorship   String   @default("NONE") // Authorship enum value
+  contribution String // JSON string[]: ideation,design,data_collection,analysis,writing
+  venue        String? // journal/conference name
+  independence Int? // 0..10 self-reported: how much YOU drove it vs. supervisors
+  narrative    String? // "who did most of the work" — honest account
+}
+
+model ActivityScore {
+  id                String   @id @default(cuid())
+  activityId        String   @unique
+  activity          Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  inputHash         String // hash of scored input; cache key
+  tier              Int // 1..4
+  impact            Int
+  originality       Int
+  initiative        Int
+  depth             Int
+  selectivity       Int
+  spikeAlignment    Int
+  substantiated     Boolean
+  inflationFlags    String // JSON string[]
+  creditMultiplier  Float? // research only: authorship/independence discount, 0..1
+  rationale         String
+  followUpQuestions String // JSON string[]
+  modelUsed         String
+  createdAt         DateTime @default(now())
+}
+
+model ProfileSynthesis {
+  id               String   @id @default(cuid())
+  studentId        String   @unique
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  primarySpike     String // theme
+  spikeStrength    Int // 0..10
+  secondaryThemes  String // JSON string[]
+  academicStrength Int // 0..10 (derived from GPA/rigor/tests vs. norms)
+  overallNarrative String
+  gaps             String // JSON string[]: what's missing to strengthen the spike
+  feasibleMoves    String // JSON: time-gated next steps given years remaining
+  updatedAt        DateTime @updatedAt
+}
+
+model School {
+  id            String  @id @default(cuid())
+  name          String  @unique
+  admitRate     Float? // 0..1, base rate
+  gpaMid50Low   Float?
+  gpaMid50High  Float?
+  satMid50Low   Int?
+  satMid50High  Int?
+  type          String? // public/private/LAC
+  size          Int?
+  strongMajors  String? // JSON string[]
+  sourceUrl     String? // where the stats came from
+}
+
+model Opportunity {
+  id               String  @id @default(cuid())
+  name             String
+  type             String // OppType enum value (see lib/enums.ts)
+  description      String?
+  gradeEligibility String // JSON int[]: which grades can apply (e.g. [10,11])
+  deadlineMonth    Int? // 1..12, recurring window (no fabricated exact date)
+  deadlineNote     String? // "rolling", "early Jan", etc.
+  selectivityNote  String? // how competitive, if known
+  sourceUrl        String // REQUIRED. official page.
+  verified         Boolean @default(false)
+}
