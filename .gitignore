@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Environment variables — NEVER commit secrets (Gemini API key, etc.)
+.env
+.env.*
+!.env.example
+
+# Netlify
+.netlify/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
