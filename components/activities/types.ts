@@ -2,6 +2,9 @@
 // island. Prisma Date columns are pre-formatted to strings and JSON columns are
 // pre-parsed on the server so the client never imports server-only code.
 
+import type { DeepDive } from "@/lib/gemini/schemas";
+import type { SelectivityBreakdown } from "@/lib/types";
+
 export interface ResearchView {
   outputType: string;
   authorship: string;
@@ -24,6 +27,8 @@ export interface ScoreView {
   creditMultiplier: number | null;
   rationale: string;
   followUpQuestions: string[];
+  /** Parsed Axis-A selectivity breakdown (§6/§11). Empty when not yet scored. */
+  selectivityBreakdown: SelectivityBreakdown;
 }
 
 export interface ActivityView {
@@ -39,6 +44,12 @@ export interface ActivityView {
   weeksPerYear: number | null;
   evidenceUrl: string | null;
   spikeTheme: string | null;
+  /** Normalized Axis-A program key, when this activity names a program. */
+  programKey: string | null;
   research: ResearchView | null;
+  /** Parsed Axis-B per-category deep dive (null for research / none yet). */
+  deepDive: DeepDive | null;
   score: ScoreView | null;
+  /** When Axis-A program enrichment was last resolved (ISO string), or null. */
+  enrichedAt: string | null;
 }

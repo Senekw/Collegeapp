@@ -49,6 +49,7 @@ function toInput(values: ActivityFormValues): ActivityInput {
     evidenceUrl: values.evidenceUrl,
     spikeTheme: values.spikeTheme,
     research: values.research,
+    deepDive: values.deepDive,
   };
 }
 

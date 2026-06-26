@@ -6,7 +6,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { AcademicFit, RealismBand, SchoolMatch } from "@/lib/types";
+import type {
+  AcademicFit,
+  DistributionPlacement,
+  RealismBand,
+  SchoolMatch,
+  TailOutlook,
+} from "@/lib/types";
 
 /**
  * Map a realism band to a Badge variant.
@@ -31,10 +37,12 @@ function bandVariant(band: RealismBand): BadgeProps["variant"] {
   }
 }
 
-/** Format a 0..1 admit rate as a whole-number percent, e.g. 0.073 -> "7%". */
+/** Format a 0..1 base admit rate as a percent, or an honest "unverified" flag. */
 function formatAdmitRate(rate: number | null): string {
   if (rate === null) return "admit rate unverified";
-  return `${Math.round(rate * 100)}% admit rate`;
+  // One decimal under 10% so 4% vs 4.5% reads honestly; whole number above.
+  const pct = rate * 100;
+  return pct < 10 ? `${pct.toFixed(1)}% admit rate` : `${Math.round(pct)}% admit rate`;
 }
 
 /** Human phrase for academic fit, anchored to published mid-50% ranges. */
@@ -60,6 +68,87 @@ function formatGpaRange(low: number | null, high: number | null): string | null 
 function formatSatRange(low: number | null, high: number | null): string | null {
   if (low === null || high === null) return null;
   return `SAT ${low}–${high}`;
+}
+
+/**
+ * Honest, NEVER per-student admit probability. When a real admitted-class
+ * distribution placed the student, surface "~X% of recent admits at/below your
+ * stats (YYYY, source)" with a source link; otherwise note the mid-50% read or
+ * that the distribution is unverified.
+ */
+function PlacementLine({
+  placement,
+}: {
+  placement: DistributionPlacement;
+}) {
+  if (
+    placement.basis === "distribution" &&
+    placement.percentileOfAdmitsAtOrBelow !== null
+  ) {
+    const pct = Math.round(placement.percentileOfAdmitsAtOrBelow * 100);
+    const year = placement.asOfYear !== null ? `, ${placement.asOfYear}` : "";
+    return (
+      <p className="text-sm text-muted-foreground">
+        ~{pct}% of recent admits had stats at or below yours{year}
+        {placement.sourceUrl !== null ? (
+          <>
+            {" ("}
+            <a
+              href={placement.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              source
+            </a>
+            {")"}
+          </>
+        ) : null}
+        .
+      </p>
+    );
+  }
+
+  if (placement.basis === "mid50") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Placement is a mid-50% range fit only; no admitted-class distribution is
+        available.
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      Admitted-class distribution unverified.
+    </p>
+  );
+}
+
+/**
+ * Surface the tail outlook honestly, only when it is meaningful (!= "na").
+ * When the tail IS invoked, §8.7/§11 require the survivorship-bias note to
+ * appear here — realism.caveat already carries it, so render the full per-card
+ * caveat alongside the outlook phrase.
+ */
+function TailOutlookLine({
+  tailOutlook,
+  caveat,
+}: {
+  tailOutlook: TailOutlook;
+  caveat: string;
+}) {
+  if (tailOutlook === "na") return null;
+  const text =
+    tailOutlook === "narrow_but_credible"
+      ? "Narrow but credible tail for your spike tier."
+      : "Very long odds from below the typical range.";
+  return (
+    <div className="rounded-md border border-warning/40 bg-warning/5 p-2.5">
+      <p className="text-sm font-medium text-foreground">{text}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{caveat}</p>
+    </div>
+  );
 }
 
 export function SchoolCard({ match }: { match: SchoolMatch }) {
@@ -99,7 +188,13 @@ export function SchoolCard({ match }: { match: SchoolMatch }) {
         {/* One-line "why this school for your spike." */}
         <p className="text-sm text-muted-foreground">{why}</p>
 
-        {/* Per-school realism rationale (cites baseRate + fit; never a per-student %). */}
+        {/* Distribution placement (never a per-student admit %). */}
+        <PlacementLine placement={realism.distributionPlacement} />
+
+        {/* Tail outlook + survivorship-flagged caveat, surfaced only when meaningful. */}
+        <TailOutlookLine tailOutlook={realism.tailOutlook} caveat={realism.caveat} />
+
+        {/* Per-school realism rationale (cites baseRate + placement; never a per-student %). */}
         <p className="text-sm text-muted-foreground">{realism.rationale}</p>
 
         {/* Honest data-completeness flags instead of inventing numbers. */}

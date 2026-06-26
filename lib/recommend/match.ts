@@ -1,17 +1,21 @@
 import type {
   AcademicFit,
+  AdmitDistributionData,
   SchoolData,
   SchoolMatch,
+  SpikeAssessmentData,
   StudentMetrics,
   SynthesisData,
 } from "@/lib/types";
 import { computeAcademicFit, estimateRealism } from "@/lib/recommend/realism";
 
 /**
- * §5.5 School matching.
+ * §8 School matching (realism wiring updated for the distribution/spike-aware
+ * estimateRealism).
  *
- * Pure ranking logic: given a student, a set of schools, and the (optional)
- * profile synthesis, score each school for "aspirational but plausible" fit and
+ * Pure ranking logic: given a student, a set of schools, the (optional) profile
+ * synthesis, the (optional) spike assessment, and per-school admitted-class
+ * distributions, score each school for "aspirational but plausible" fit and
  * rank. Realism is delegated to lib/recommend/realism.ts.
  */
 
@@ -54,10 +58,12 @@ export function scoreSchoolMatch(
   student: StudentMetrics,
   school: SchoolData,
   synthesis: SynthesisData | null,
+  spike: SpikeAssessmentData | null,
+  distributions: AdmitDistributionData[],
 ): SchoolMatch {
   const academicFit = computeAcademicFit(student, school);
   const spikeFit = computeSpikeFit(synthesis, school);
-  const realism = estimateRealism(student, school, synthesis, spikeFit);
+  const realism = estimateRealism(student, school, spike, distributions);
   const missing = collectMissing(school);
   const fitScore = computeFitScore(academicFit, spikeFit, school);
   const why = buildWhy(school, academicFit, spikeFit, synthesis);
@@ -67,16 +73,27 @@ export function scoreSchoolMatch(
 
 /**
  * Rank schools by fitScore descending, skewing toward reach/target (the
- * fitScore itself encodes that skew), and return the top `limit`.
+ * fitScore itself encodes that skew), and return the top `limit`. Each school's
+ * admitted-class distributions are looked up by id (default []).
  */
 export function rankSchools(
   student: StudentMetrics,
   schools: SchoolData[],
   synthesis: SynthesisData | null,
+  spike: SpikeAssessmentData | null,
+  distributionsBySchoolId: Record<string, AdmitDistributionData[]>,
   limit = 5,
 ): SchoolMatch[] {
   return schools
-    .map((school) => scoreSchoolMatch(student, school, synthesis))
+    .map((school) =>
+      scoreSchoolMatch(
+        student,
+        school,
+        synthesis,
+        spike,
+        distributionsBySchoolId[school.id] ?? [],
+      ),
+    )
     .sort((a, b) => b.fitScore - a.fitScore || a.school.name.localeCompare(b.school.name))
     .slice(0, Math.max(0, limit));
 }

@@ -285,12 +285,189 @@ const OPPORTUNITIES: OpportunitySeed[] = [
   },
 ];
 
+// =========================================================================
+// EXTENSION (§9, §10): anonymized AdmitArchetype calibration anchors.
+//
+// HONESTY CONTRACT for archetypes:
+// - These are ANONYMIZED PATTERNS, never named private individuals (§1.6). No
+//   row names, references, or otherwise identifies a specific minor or private
+//   applicant. Each describes a *shape* of profile that recurs in the admissions
+//   discourse.
+// - These are CALIBRATION ANCHORS, not measured facts. They illustrate where a
+//   tier "feels like" it sits on the spike scale. We do NOT fabricate precise
+//   admit statistics: statBand uses honest ranges, exampleOutcomes is hedged
+//   ("admitted to several sub-10% schools") and acknowledges survivorship bias,
+//   and confidence is LOW or NONE — never HIGH. asOfYear is null because these
+//   are timeless patterns, not a single documented cycle.
+// - spikeSignature is a JSON.stringify of { peak, concentration, trajectory,
+//   originality, note } where the four dimensions are 0..10 illustrative levels.
+// - sources point to GENERAL, real, public references where the *pattern* (not a
+//   person) is discussed, or null with confidence NONE. We never invent a URL.
+// =========================================================================
+
+interface SpikeSignatureSeed {
+  peak: number; // 0..10 height of the single strongest achievement
+  concentration: number; // 0..10 how focused the profile is on one theme
+  trajectory: number; // 0..10 growth/escalation over time
+  originality: number; // 0..10 how unusual/self-originated the work is
+  note: string;
+}
+
+interface ArchetypeSeed {
+  archetypeKey: string;
+  label: string;
+  description: string;
+  statBand: string;
+  spikeSignature: SpikeSignatureSeed;
+  tier: string; // SpikeTier value (UPPERCASE)
+  exampleOutcomes: string;
+  sources: { url: string; publisher: string; note: string }[]; // may be empty
+  confidence: string; // "LOW" | "NONE"
+  asOfYear: number | null;
+}
+
+const ARCHETYPES: ArchetypeSeed[] = [
+  {
+    archetypeKey: "singular-mass-impact-founder",
+    label: "Singular original mass-impact founder",
+    description:
+      "Student independently started a venture or initiative that grew to genuine, measurable scale and served thousands of people beyond their own school or town (pattern: a self-originated food-rescue / community-logistics nonprofit that redistributes surplus at real volume). The work is unmistakably theirs, escalates year over year, and is original rather than a chapter of an existing program.",
+    statBand: "GPA 3.8-4.0 unweighted, test high-band (or test-optional)",
+    spikeSignature: {
+      peak: 10,
+      concentration: 9,
+      trajectory: 10,
+      originality: 10,
+      note: "Rare top-of-scale anchor: one self-originated venture at real-world scale, clearly student-driven.",
+    },
+    tier: "EXCEPTIONAL",
+    exampleOutcomes:
+      "Profiles of this shape are over-represented among admits to several sub-10% schools, but this is survivorship-biased anecdote, not a guaranteed outcome — most strong applicants to those schools are still denied.",
+    sources: [],
+    confidence: "NONE",
+    asOfYear: null,
+  },
+  {
+    archetypeKey: "deep-research-output-mid-stats",
+    label: "Deep research-output spike with mid stats",
+    description:
+      "Student pursued one research line for multiple years and produced a real, externally validated output (a first-author or co-first-author publication in a recognized venue, or a top placement at a national research competition) while carrying academically solid-but-not-perfect grades and scores. The depth and the concrete output, not the GPA, carry the profile.",
+    statBand: "GPA 3.7-3.9 unweighted, test mid-band",
+    spikeSignature: {
+      peak: 9,
+      concentration: 9,
+      trajectory: 8,
+      originality: 8,
+      note: "Depth-over-breadth anchor: an externally validated research output offsets non-perfect stats.",
+    },
+    tier: "EXCEPTIONAL",
+    exampleOutcomes:
+      "This shape appears among admits to highly selective STEM programs despite mid-band stats; treat as an illustrative pattern, not a promise — outcomes vary widely and many comparable applicants are denied.",
+    sources: [
+      {
+        url: "https://www.societyforscience.org/regeneron-sts/",
+        publisher: "Society for Science",
+        note: "General reference for what a top national research-competition placement is (pattern, not a person).",
+      },
+    ],
+    confidence: "LOW",
+    asOfYear: null,
+  },
+  {
+    archetypeKey: "national-competition-winner",
+    label: "National-competition winner",
+    description:
+      "Student reached a national-level placement (finalist or medalist) in a recognized, broadly competitive academic olympiad or competition. The achievement is externally verifiable and nationally benchmarked, but the profile is built around the competition rather than an original self-directed body of work.",
+    statBand: "GPA 3.8-4.0 unweighted, test high-band",
+    spikeSignature: {
+      peak: 9,
+      concentration: 8,
+      trajectory: 7,
+      originality: 6,
+      note: "Externally benchmarked national achievement; less self-originated than the founder/research anchors.",
+    },
+    tier: "NATIONAL",
+    exampleOutcomes:
+      "National-competition winners are well represented among admits to selective schools, but admission is never guaranteed by a single award — acknowledge survivorship bias.",
+    sources: [
+      {
+        url: "https://usaco.org/",
+        publisher: "USA Computing Olympiad",
+        note: "Example of a national competition structure (pattern reference, not a named winner).",
+      },
+    ],
+    confidence: "LOW",
+    asOfYear: null,
+  },
+  {
+    archetypeKey: "regional-narrow-spike",
+    label: "Strong-but-narrow regional spike",
+    description:
+      "Student is clearly committed to one theme and has earned real recognition at the regional or state level (a regional award, a state placement, a local leadership role with documented impact), but has not yet broken through to national-level validation. Focused and credible, with a ceiling that is regional rather than national so far.",
+    statBand: "GPA 3.7-3.9 unweighted, test mid-to-high band",
+    spikeSignature: {
+      peak: 7,
+      concentration: 8,
+      trajectory: 6,
+      originality: 6,
+      note: "Genuine focus and regional recognition; not yet nationally benchmarked.",
+    },
+    tier: "STRONG",
+    exampleOutcomes:
+      "Profiles of this shape are competitive at many selective schools but are mid-pack at the most selective; outcomes depend heavily on the rest of the application.",
+    sources: [],
+    confidence: "NONE",
+    asOfYear: null,
+  },
+  {
+    archetypeKey: "well-rounded-broad-flat",
+    label: "Broad-but-flat well-rounded profile",
+    description:
+      "Student is involved in many activities and holds several leadership titles, but no single thread reaches standout depth or external validation. Strong all-around and reliable, with breadth substituting for a defined spike. Common, capable, and hard to distinguish at the very top of the selectivity range.",
+    statBand: "GPA 3.8-4.0 unweighted, test high-band",
+    spikeSignature: {
+      peak: 5,
+      concentration: 3,
+      trajectory: 5,
+      originality: 4,
+      note: "Breadth without a peak: many activities, no single dominant, externally validated thread.",
+    },
+    tier: "SOLID",
+    exampleOutcomes:
+      "Broad well-rounded profiles see strong outcomes at selective-but-not-elite schools and variable outcomes at sub-10% schools, where a defined spike is typically what differentiates admits.",
+    sources: [],
+    confidence: "NONE",
+    asOfYear: null,
+  },
+  {
+    archetypeKey: "emerging-early-grade",
+    label: "Emerging early-grade profile",
+    description:
+      "Younger student (9th-10th grade) showing early signal in one direction — a promising start on a project, an early competition entry, a self-initiated effort — but without the time-in-grade to have produced validated output yet. Trajectory is the story; the ceiling is still open.",
+    statBand: "GPA 3.7-4.0 unweighted, test not-yet-taken or early-band",
+    spikeSignature: {
+      peak: 4,
+      concentration: 6,
+      trajectory: 7,
+      originality: 6,
+      note: "Early but directional: limited output so far, with room and time to escalate.",
+    },
+    tier: "EMERGING",
+    exampleOutcomes:
+      "Too early to map to admit outcomes; this anchor exists to place a promising-but-young profile on the scale, not to predict results.",
+    sources: [],
+    confidence: "NONE",
+    asOfYear: null,
+  },
+];
+
 async function main(): Promise<void> {
   // --- Idempotency: clear seedable tables. Student is cleared by userId so we
   //     never duplicate the single local profile. School/Opportunity are wiped
   //     and recreated so re-running converges to exactly this dataset. ---
   await prisma.opportunity.deleteMany({});
   await prisma.school.deleteMany({});
+  await prisma.admitArchetype.deleteMany({});
   await prisma.student.deleteMany({ where: { userId: LOCAL_USER_ID } });
 
   // --- ONE clean-slate Student. Mostly null: we do NOT invent the user. ---
@@ -349,16 +526,35 @@ async function main(): Promise<void> {
     });
   }
 
-  const [students, schools, opportunities, verifiedOpps] = await Promise.all([
+  // --- AdmitArchetype calibration anchors (anonymized PATTERNS only) ---
+  for (const a of ARCHETYPES) {
+    await prisma.admitArchetype.create({
+      data: {
+        archetypeKey: a.archetypeKey,
+        label: a.label,
+        description: a.description,
+        statBand: a.statBand,
+        spikeSignature: JSON.stringify(a.spikeSignature),
+        tier: a.tier,
+        exampleOutcomes: a.exampleOutcomes,
+        sources: JSON.stringify(a.sources),
+        confidence: a.confidence,
+        asOfYear: a.asOfYear,
+      },
+    });
+  }
+
+  const [students, schools, opportunities, verifiedOpps, archetypes] = await Promise.all([
     prisma.student.count({ where: { userId: LOCAL_USER_ID } }),
     prisma.school.count(),
     prisma.opportunity.count(),
     prisma.opportunity.count({ where: { verified: true } }),
+    prisma.admitArchetype.count(),
   ]);
 
   console.log(
     `Seed complete: ${students} student, ${schools} schools, ${opportunities} opportunities ` +
-      `(${verifiedOpps} with a verified deadline).`,
+      `(${verifiedOpps} with a verified deadline), ${archetypes} admit archetypes.`,
   );
 }
 

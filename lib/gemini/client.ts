@@ -107,6 +107,119 @@ export async function callStructured<T>(opts: CallStructuredOptions<T>): Promise
   );
 }
 
+/** A web source returned by Google Search grounding. */
+export interface GroundingSource {
+  uri: string;
+  title: string | null;
+}
+
+export interface CallGroundedResult {
+  text: string;
+  sources: GroundingSource[];
+  searchQueries: string[];
+}
+
+/**
+ * Call Gemini with the Google Search grounding tool and return the grounded
+ * free-text answer plus its real source citations. (§4.2)
+ *
+ * IMPORTANT: the Gemini API does NOT allow combining the googleSearch tool with
+ * responseMimeType="application/json" + responseSchema, so this returns TEXT.
+ * The enrichment layer pairs this with a separate callStructured() extraction
+ * step to turn the grounded text + sources into validated JSON.
+ *
+ * Citations come from candidates[0].groundingMetadata.groundingChunks[].web
+ * (confirmed against the @google/genai@2.x type defs). Retries transient
+ * transport failures like callStructured.
+ */
+export async function callGrounded(opts: {
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+}): Promise<CallGroundedResult> {
+  const { model, systemPrompt, userPrompt } = opts;
+
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new GeminiConfigError(
+      "Gemini API key is not configured. Set GEMINI_API_KEY in the environment.",
+    );
+  }
+
+  const client = new GoogleGenAI({ apiKey });
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < MAX_TRANSPORT_RETRIES; attempt++) {
+    const startedAt = performance.now();
+    try {
+      const response = await client.models.generateContent({
+        model,
+        contents: userPrompt,
+        config: {
+          temperature: 0.1,
+          systemInstruction: systemPrompt,
+          // Enable live Google Search grounding. No responseSchema here.
+          tools: [{ googleSearch: {} }],
+        },
+      });
+
+      const latencyMs = Math.round(performance.now() - startedAt);
+      logCall(`${model} (grounded)`, latencyMs, response.usageMetadata);
+
+      const text = response.text ?? "";
+      const meta = extractGroundingMetadata(response);
+      return { text, sources: meta.sources, searchQueries: meta.searchQueries };
+    } catch (err) {
+      lastError = err;
+      if (err instanceof GeminiError) throw err;
+      if (!isRetryable(err) || attempt === MAX_TRANSPORT_RETRIES - 1) break;
+      await sleep(BASE_BACKOFF_MS * 2 ** attempt);
+    }
+  }
+
+  throw new GeminiError(
+    `Grounded Gemini call failed for model "${model}" after ${MAX_TRANSPORT_RETRIES} attempt(s).`,
+    { cause: lastError },
+  );
+}
+
+/** Defensively pull grounding chunks (source URIs/titles) + search queries from
+ *  a generateContent response. Tolerant of missing fields across SDK versions. */
+function extractGroundingMetadata(response: unknown): {
+  sources: GroundingSource[];
+  searchQueries: string[];
+} {
+  const sources: GroundingSource[] = [];
+  const searchQueries: string[] = [];
+  if (typeof response !== "object" || response === null) return { sources, searchQueries };
+
+  const candidates = (response as { candidates?: unknown }).candidates;
+  const first = Array.isArray(candidates) ? candidates[0] : undefined;
+  if (typeof first !== "object" || first === null) return { sources, searchQueries };
+
+  const gm = (first as { groundingMetadata?: unknown }).groundingMetadata;
+  if (typeof gm !== "object" || gm === null) return { sources, searchQueries };
+
+  const chunks = (gm as { groundingChunks?: unknown }).groundingChunks;
+  if (Array.isArray(chunks)) {
+    const seen = new Set<string>();
+    for (const chunk of chunks) {
+      const web = (chunk as { web?: { uri?: unknown; title?: unknown } } | null)?.web;
+      const uri = typeof web?.uri === "string" ? web.uri : null;
+      if (!uri || seen.has(uri)) continue;
+      seen.add(uri);
+      sources.push({ uri, title: typeof web?.title === "string" ? web.title : null });
+    }
+  }
+
+  const queries = (gm as { webSearchQueries?: unknown }).webSearchQueries;
+  if (Array.isArray(queries)) {
+    for (const q of queries) if (typeof q === "string") searchQueries.push(q);
+  }
+
+  return { sources, searchQueries };
+}
+
 interface GenerateArgs {
   model: string;
   systemPrompt: string;

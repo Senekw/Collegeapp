@@ -7,6 +7,26 @@ with honest **admit-realism bands** (never fake per-student percentages),
 surfaces grade-eligible opportunities with **verified-only** deadlines, and
 exports a clean résumé.
 
+### v2 extension — measured spike + outlier-aware realism
+
+The platform now scores **every** activity on two separate axes — **program
+selectivity** (Axis A, web-grounded via Gemini Google Search with cited,
+year-stamped figures and prior-year fallback) and **student attainment** (Axis B,
+per-category deep dives that never conflate *attended* with *won* or *accepted*
+with *funded*). Those feed a measured, decomposable **Spike Index** (0–100, five
+archetype-calibrated tiers, where a single towering original peak can reach the
+top and selectivity-without-authorship cannot). Realism is **distribution- and
+outlier-aware**: below-band stats read as a documented, **survivorship-flagged
+admit tail** — the band ceilings always hold (sub-10% never better than Reach,
+sub-5% always Hard Reach), the spike only sets the *tail outlook*, and **no
+per-student admit percentage is ever emitted**. Anything web-sourced carries a
+`sourceUrl` + `asOfYear` or it is stored `null` with confidence `NONE`.
+
+> **The Axis-A enrichment, admit distributions, and archetype refresh require a
+> `GEMINI_API_KEY`** (they use grounded search). Everything else — the Spike
+> Index core, the realism bands, the deep-dive forms — works without one; the
+> Spike Index computes deterministically and degrades gracefully.
+
 ## Non-negotiable principles (these are enforced, not aspirational)
 
 1. **No false precision on admissions.** Never a single per-student admit %.

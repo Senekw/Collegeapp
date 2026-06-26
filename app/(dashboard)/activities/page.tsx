@@ -2,10 +2,17 @@
 // student with its optional research detail and cached score, maps each Prisma
 // row into a plain, serializable ActivityView, and hands the list to the client
 // island that owns the add/edit/delete/score interactions.
+//
+// EXTENSION (§6/§11): the cached score's selectivityBreakdown JSON and the
+// activity's deepDive JSON are parsed HERE on the server (via the @/lib/data and
+// @/lib/gemini/schemas helpers) so the client island only ever receives plain
+// data — no server-only import crosses the boundary. The matching
+// ProgramEnrichment row (by programKey, current cycle) supplies enrichedAt.
 
-import { getOrCreateLocalStudent } from "@/lib/data";
+import { getOrCreateLocalStudent, parseSelectivityBreakdown } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { parseStringArray } from "@/lib/enums";
+import { DeepDiveSchema, type DeepDive } from "@/lib/gemini/schemas";
 
 import { ActivitiesClient } from "@/components/activities/activities-client";
 import type { ActivityView } from "@/components/activities/types";
@@ -19,6 +26,19 @@ function toDateInput(d: Date | null): string | null {
   return iso.slice(0, 10);
 }
 
+/** Defensively parse the stored deepDive JSON into a DeepDive (or null). */
+function parseDeepDive(raw: string | null): DeepDive | null {
+  if (raw === null || raw.length === 0) return null;
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const parsed = DeepDiveSchema.safeParse(json);
+  return parsed.success ? parsed.data : null;
+}
+
 export default async function ActivitiesPage() {
   const student = await getOrCreateLocalStudent();
 
@@ -27,6 +47,24 @@ export default async function ActivitiesPage() {
     include: { research: true, score: true },
     orderBy: { updatedAt: "desc" },
   });
+
+  // Resolve enrichedAt for any named programs in one batched query (current
+  // cycle). Keyed by programKey for O(1) lookup while mapping rows.
+  const cycleYear = new Date().getFullYear();
+  const programKeys = Array.from(
+    new Set(rows.map((a) => a.programKey).filter((k): k is string => k !== null)),
+  );
+  const enrichments =
+    programKeys.length > 0
+      ? await prisma.programEnrichment.findMany({
+          where: { programKey: { in: programKeys }, cycleYear },
+          select: { programKey: true, enrichedAt: true },
+        })
+      : [];
+  const enrichedAtByKey = new Map<string, string>();
+  for (const e of enrichments) {
+    enrichedAtByKey.set(e.programKey, e.enrichedAt.toISOString());
+  }
 
   const activities: ActivityView[] = rows.map((a) => ({
     id: a.id,
@@ -40,6 +78,7 @@ export default async function ActivitiesPage() {
     weeksPerYear: a.weeksPerYear,
     evidenceUrl: a.evidenceUrl,
     spikeTheme: a.spikeTheme,
+    programKey: a.programKey,
     research: a.research
       ? {
           outputType: a.research.outputType,
@@ -50,6 +89,7 @@ export default async function ActivitiesPage() {
           narrative: a.research.narrative,
         }
       : null,
+    deepDive: parseDeepDive(a.deepDive),
     score: a.score
       ? {
           tier: a.score.tier,
@@ -64,8 +104,15 @@ export default async function ActivitiesPage() {
           creditMultiplier: a.score.creditMultiplier,
           rationale: a.score.rationale,
           followUpQuestions: parseStringArray(a.score.followUpQuestions),
+          selectivityBreakdown: parseSelectivityBreakdown(
+            a.score.selectivityBreakdown,
+          ),
         }
       : null,
+    enrichedAt:
+      a.programKey !== null
+        ? enrichedAtByKey.get(a.programKey) ?? null
+        : null,
   }));
 
   return (

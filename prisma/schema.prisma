@@ -32,6 +32,7 @@ model Student {
   contextNotes  String? // first-gen, constraints, etc. (optional, self-reported)
   activities    Activity[]
   synthesis     ProfileSynthesis?
+  spikeAssessment SpikeAssessment?
   updatedAt     DateTime @updatedAt
 
   @@index([userId])
@@ -52,6 +53,8 @@ model Activity {
   weeksPerYear Int?
   evidenceUrl  String? // proof: publication link, repo, award page
   spikeTheme   String? // user-tagged theme; LLM may suggest/override
+  programKey   String? // normalized key into ProgramEnrichment (Axis A), if named program
+  deepDive     String? // JSON: per-category deep dive (Axis B); ResearchDetail is the research arm
   research     ResearchDetail?
   score        ActivityScore?
   updatedAt    DateTime        @updatedAt
@@ -86,7 +89,9 @@ model ActivityScore {
   spikeAlignment    Int
   substantiated     Boolean
   inflationFlags    String // JSON string[]
-  creditMultiplier  Float? // research only: authorship/independence discount, 0..1
+  creditMultiplier  Float    @default(1.0) // generalized attribution/realness 0..1 (ALL categories now)
+  selectivityBreakdown String @default("{}") // JSON: Axis-A figures + attainment (§6)
+  enrichmentHashUsed String? // hash of the ProgramEnrichment content consumed (cache key part)
   rationale         String
   followUpQuestions String // JSON string[]
   modelUsed         String
@@ -119,6 +124,7 @@ model School {
   size          Int?
   strongMajors  String? // JSON string[]
   sourceUrl     String? // where the stats came from
+  admitDistributions AdmitDistribution[]
 }
 
 model Opportunity {
@@ -132,4 +138,88 @@ model Opportunity {
   selectivityNote  String? // how competitive, if known
   sourceUrl        String // REQUIRED. official page.
   verified         Boolean @default(false)
+}
+
+// =========================================================================
+// EXTENSION: web-grounded enrichment, admit distributions, archetypes, spike.
+// String columns model the spec's enums (ProgramLevel/SourceQuality/Confidence/
+// StatType) and are enforced by Zod in lib/enums.ts (SQLite has no enums).
+// =========================================================================
+
+// Axis A — program selectivity/prestige. Shared + cached per (programKey, cycleYear).
+model ProgramEnrichment {
+  id                   String   @id @default(cuid())
+  programKey           String // normalized, e.g. "yc-startup-school"
+  displayName          String
+  aliases              String // JSON string[]
+  category             String
+  level                String   @default("UNKNOWN") // ProgramLevel
+  cycleYear            Int
+  asOfYear             Int // year the FIGURES pertain to
+  isFallbackYear       Boolean  @default(false)
+  applicantCount       Int?
+  acceptedCount        Int?
+  acceptanceRate       Float? // 0..1
+  participantCount     Int?
+  awardWinnerCount     Int?
+  awardLevels          String? // JSON
+  notableWinners       String? // JSON: [{ who?, what, year, sourceUrl }] (anonymize private minors)
+  prestigeTier         Int? // 1..5
+  admissionsImpactNote String?
+  attendVsWinNote      String // explicit non-conflation note
+  sources              String // JSON: [{ url, publisher, year, quality }]
+  confidence           String   @default("NONE") // Confidence
+  enrichedAt           DateTime @default(now())
+  modelUsed            String
+
+  @@unique([programKey, cycleYear])
+}
+
+// Per school, per stat, per year. Powers outlier-aware realism.
+model AdmitDistribution {
+  id             String   @id @default(cuid())
+  schoolId       String
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  statType       String // StatType: GPA | SAT | ACT | CLASS_RANK
+  buckets        String // JSON: [{ rangeLabel, pctOfAdmits }]
+  asOfYear       Int
+  isFallbackYear Boolean  @default(false)
+  sources        String // JSON
+  confidence     String   @default("NONE") // Confidence
+  enrichedAt     DateTime @default(now())
+
+  @@unique([schoolId, statType, asOfYear])
+}
+
+// Anonymized calibration anchors for the spike scale (patterns + stats, never people).
+model AdmitArchetype {
+  id              String  @id @default(cuid())
+  archetypeKey    String  @unique
+  label           String
+  description     String // anonymized PATTERN, never a named person
+  statBand        String
+  spikeSignature  String // JSON: the dimension profile that defines it
+  tier            String // EMERGING|SOLID|STRONG|NATIONAL|EXCEPTIONAL
+  exampleOutcomes String // hedged outcome class (no names)
+  sources         String // JSON
+  confidence      String  @default("NONE") // Confidence
+  asOfYear        Int?
+}
+
+// Computed measured spike, 1:1 with student, fully auditable.
+model SpikeAssessment {
+  id              String   @id @default(cuid())
+  studentId       String   @unique
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  spikeIndex      Int // 0..100
+  tier            String // EMERGING|SOLID|STRONG|NATIONAL|EXCEPTIONAL
+  dominantTheme   String
+  peakActivityIds String // JSON
+  components      String // JSON: { peak, concentration, trajectory, originality } each 0..10
+  rarityAnchor    String? // archetypeKey it most resembles
+  gapToNextTier   String // concrete, time-aware
+  breakdown       String // JSON: full audit
+  inputHash       String
+  spikeVersion    String
+  computedAt      DateTime @default(now())
 }

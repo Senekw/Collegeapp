@@ -1,11 +1,12 @@
 // Activity-score cache (server-only).
 //
 // The expensive part of scoring is the Gemini call, so we cache results keyed by
-// a hash of the EXACT input that was scored (the ActivityScoringPayload plus the
-// rubric version). If neither the activity input nor the rubric changed, the
-// stored score is still valid and we skip the model call. The hash is computed
-// over a CANONICAL JSON form (recursively sorted keys) so logically-identical
-// payloads with different key ordering produce the same hash.
+// a hash of the EXACT input that was scored (the ActivityScoringPayload, the
+// resolved enrichment content, and the rubric version). If none of the activity
+// input, the consumed enrichment, or the rubric changed, the stored score is
+// still valid and we skip the model call. The hash is computed over a CANONICAL
+// JSON form (recursively sorted keys) so logically-identical payloads with
+// different key ordering produce the same hash.
 
 import { createHash } from "node:crypto";
 
@@ -17,10 +18,13 @@ import type { ActivityScore } from "@prisma/client";
 
 /**
  * Compute the cache key for an activity-scoring input. SHA-256 over canonical
- * JSON of { payload, rubricVersion }. Stable across key ordering.
+ * JSON of { payload, enrichmentHash, rubricVersion }. Stable across key
+ * ordering. The enrichmentHash folds in the scoring-relevant content of the
+ * ProgramEnrichment consumed (or the constant "no enrichment" hash) so a
+ * re-enrichment that changes a figure invalidates the cached score.
  */
-export function computeInputHash(payload: ActivityScoringPayload): string {
-  const canonical = canonicalize({ payload, rubricVersion: RUBRIC_VERSION });
+export function computeInputHash(payload: ActivityScoringPayload, enrichmentHash: string): string {
+  const canonical = canonicalize({ payload, enrichmentHash, rubricVersion: RUBRIC_VERSION });
   return createHash("sha256").update(canonical).digest("hex");
 }
 
@@ -31,7 +35,8 @@ export function getStoredScore(activityId: string): Promise<ActivityScore | null
 
 /**
  * A stored score is fresh iff it exists and its recorded inputHash matches the
- * hash of the current input (same activity input + same rubric version).
+ * hash of the current input (same activity input + same enrichment + same
+ * rubric version).
  */
 export function isScoreFresh(stored: ActivityScore | null, inputHash: string): boolean {
   return stored !== null && stored.inputHash === inputHash;
@@ -42,14 +47,17 @@ export interface StoreScoreArgs {
   inputHash: string;
   result: ActivityScoreResult;
   modelUsed: string;
+  enrichmentHashUsed: string;
 }
 
 /**
  * Upsert the scored result into ActivityScore, mapping the nested Gemini result
- * onto the flat columns. JSON-string columns go through serializeArray.
+ * onto the flat columns. Writes the TOP-LEVEL non-null creditMultiplier (§6),
+ * the selectivityBreakdown JSON, and the enrichmentHashUsed audit field.
+ * JSON-string array columns go through serializeArray.
  */
 export function storeScore(args: StoreScoreArgs): Promise<ActivityScore> {
-  const { activityId, inputHash, result, modelUsed } = args;
+  const { activityId, inputHash, result, modelUsed, enrichmentHashUsed } = args;
 
   const data = {
     inputHash,
@@ -62,7 +70,9 @@ export function storeScore(args: StoreScoreArgs): Promise<ActivityScore> {
     spikeAlignment: result.scores.spikeAlignment,
     substantiated: result.credibility.substantiated,
     inflationFlags: serializeArray(result.credibility.inflationFlags),
-    creditMultiplier: result.research?.creditMultiplier ?? null,
+    creditMultiplier: result.creditMultiplier,
+    selectivityBreakdown: JSON.stringify(result.selectivityBreakdown),
+    enrichmentHashUsed,
     rationale: result.rationale,
     followUpQuestions: serializeArray(result.followUpQuestions),
     modelUsed,

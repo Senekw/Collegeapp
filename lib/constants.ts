@@ -5,7 +5,20 @@
  * the scoring rubric/prompt or the ActivityScoreSchema changes so that every
  * cached score is deliberately recomputed on next scoring.
  */
-export const RUBRIC_VERSION = "1.0.0";
+export const RUBRIC_VERSION = "2.0.0";
+
+/**
+ * SPIKE_VERSION participates in the SpikeAssessment input hash (§7.4). Bump it
+ * when the spike core math, weights, tiers, or calibration prompt change so all
+ * spikes recompute deliberately.
+ */
+export const SPIKE_VERSION = "1.0.0";
+
+/**
+ * Version of the curated anonymized archetype set used to calibrate the spike
+ * tier. Part of the spike input hash so re-curating the set recomputes spikes.
+ */
+export const ARCHETYPE_SET_VERSION = "1.0.0";
 
 /** v1 is single-user. All rows are scoped to this id (the §1 seam). */
 export const LOCAL_USER_ID = "local";

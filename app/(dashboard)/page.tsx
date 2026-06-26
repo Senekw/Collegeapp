@@ -29,7 +29,8 @@ import {
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScoreBar } from "@/components/ui/score-bar";
-import { getOrCreateLocalStudent } from "@/lib/data";
+import { SpikePanel } from "@/components/dashboard/spike-panel";
+import { getOrCreateLocalStudent, toSpikeAssessmentData } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { OPP_TYPE_LABELS, OppTypeSchema, parseIntArray, parseJson } from "@/lib/enums";
 import { recommendSchools } from "@/lib/services/recommend";
@@ -86,7 +87,8 @@ export default async function DashboardPage() {
   const student = await getOrCreateLocalStudent();
 
   // Synthesis + activity timestamps drive the "needs recompute" indicator.
-  const [synthesis, activityCount, latestActivity] = await Promise.all([
+  // The spike assessment (1:1 with the student) powers the Spike Panel.
+  const [synthesis, activityCount, latestActivity, spikeRow] = await Promise.all([
     prisma.profileSynthesis.findUnique({ where: { studentId: student.id } }),
     prisma.activity.count({ where: { studentId: student.id } }),
     prisma.activity.findFirst({
@@ -94,7 +96,23 @@ export default async function DashboardPage() {
       orderBy: { updatedAt: "desc" },
       select: { updatedAt: true },
     }),
+    prisma.spikeAssessment.findUnique({ where: { studentId: student.id } }),
   ]);
+
+  const spike = toSpikeAssessmentData(spikeRow);
+
+  // Resolve the peak activities' titles (in peakActivityIds order) for display.
+  let peakTitles: string[] = [];
+  if (spike !== null && spike.peakActivityIds.length > 0) {
+    const peakActivities = await prisma.activity.findMany({
+      where: { id: { in: spike.peakActivityIds }, studentId: student.id },
+      select: { id: true, title: true },
+    });
+    const titleById = new Map(peakActivities.map((a) => [a.id, a.title]));
+    peakTitles = spike.peakActivityIds
+      .map((id) => titleById.get(id))
+      .filter((t): t is string => typeof t === "string");
+  }
 
   // Recommendations + opportunities only matter once a synthesis exists, but
   // recommendSchools is pure/cheap so we run it whenever there's a synthesis.
@@ -149,6 +167,11 @@ export default async function DashboardPage() {
           </AlertDescription>
         </Alert>
       ) : null}
+
+      {/* --- Spike Index panel (§7, §11) — decomposition always shown --- */}
+      <section>
+        <SpikePanel spike={spike} peakTitles={peakTitles} />
+      </section>
 
       {/* --- Strategic payload: synthesis panel (§5.4) --- */}
       <section>
