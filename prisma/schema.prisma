@@ -223,3 +223,12 @@ model SpikeAssessment {
   spikeVersion    String
   computedAt      DateTime @default(now())
 }
+
+// Single-row app settings (server-side). Holds the Gemini API key when entered
+// via the in-app Settings page instead of the env var. Lives in the gitignored
+// local SQLite DB; never committed, never sent back to the browser.
+model AppSetting {
+  id           String   @id @default("singleton")
+  geminiApiKey String?
+  updatedAt    DateTime @updatedAt
+}

@@ -2,7 +2,7 @@
 //
 // Wraps @google/genai v2.x `models.generateContent` for the single shape this
 // app needs: send a JSON payload, get back schema-validated JSON. The Gemini
-// API key is read via getGeminiApiKey() and NEVER logged. This module imports
+// API key is resolved via resolveGeminiApiKey() (Settings DB, then env) and
 // the SDK and process.env (through the constants helper), so it must only ever
 // be imported by server code.
 //
@@ -20,7 +20,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ZodType } from "zod";
 
-import { getGeminiApiKey } from "@/lib/constants";
+import { resolveGeminiApiKey } from "@/lib/settings";
 import type { GeminiSchema } from "@/lib/gemini/schemas";
 
 /** Thrown when the Gemini API key is missing. Distinct so callers/UI can tell
@@ -68,10 +68,10 @@ export interface CallStructuredOptions<T> {
 export async function callStructured<T>(opts: CallStructuredOptions<T>): Promise<T> {
   const { model, systemPrompt, userPayload, schema, responseSchema } = opts;
 
-  const apiKey = getGeminiApiKey();
+  const apiKey = await resolveGeminiApiKey();
   if (!apiKey) {
     throw new GeminiConfigError(
-      "Gemini API key is not configured. Set GEMINI_API_KEY in the environment.",
+      "Gemini API key is not configured. Add one on the Settings page (or set GEMINI_API_KEY in .env.local).",
     );
   }
 
@@ -139,10 +139,10 @@ export async function callGrounded(opts: {
 }): Promise<CallGroundedResult> {
   const { model, systemPrompt, userPrompt } = opts;
 
-  const apiKey = getGeminiApiKey();
+  const apiKey = await resolveGeminiApiKey();
   if (!apiKey) {
     throw new GeminiConfigError(
-      "Gemini API key is not configured. Set GEMINI_API_KEY in the environment.",
+      "Gemini API key is not configured. Add one on the Settings page (or set GEMINI_API_KEY in .env.local).",
     );
   }
 

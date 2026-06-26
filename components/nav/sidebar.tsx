@@ -9,6 +9,7 @@ import {
   GraduationCap,
   CalendarClock,
   FileText,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { href: "/schools", label: "Schools", icon: GraduationCap },
   { href: "/opportunities", label: "Opportunities", icon: CalendarClock },
   { href: "/resume", label: "Resume", icon: FileText },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function Sidebar() {

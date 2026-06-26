@@ -7,7 +7,8 @@
 
 import type { AdmitArchetype } from "@prisma/client";
 
-import { getDeepModel, getGeminiApiKey } from "@/lib/constants";
+import { getDeepModel } from "@/lib/constants";
+import { resolveGeminiApiKey } from "@/lib/settings";
 import { prisma } from "@/lib/db";
 import {
   ConfidenceSchema,
@@ -53,7 +54,7 @@ export async function refreshArchetype(args: {
   const cached = await prisma.admitArchetype.findUnique({ where: { archetypeKey } });
   if (cached && !force) return cached;
 
-  if (!getGeminiApiKey()) {
+  if (!(await resolveGeminiApiKey())) {
     throw new GeminiConfigError(
       "Gemini API key is not configured. Set GEMINI_API_KEY in the environment.",
     );

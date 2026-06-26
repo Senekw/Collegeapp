@@ -12,7 +12,8 @@ import crypto from "node:crypto";
 
 import type { ProgramEnrichment } from "@prisma/client";
 
-import { getDeepModel, getGeminiApiKey } from "@/lib/constants";
+import { getDeepModel } from "@/lib/constants";
+import { resolveGeminiApiKey } from "@/lib/settings";
 import { prisma } from "@/lib/db";
 import {
   ProgramLevelSchema,
@@ -69,7 +70,7 @@ export async function resolveProgramEnrichment(args: {
   if (cached && !force) return cached;
 
   // 2) A grounded retrieval requires the key up front; fail fast & distinctly.
-  if (!getGeminiApiKey()) {
+  if (!(await resolveGeminiApiKey())) {
     throw new GeminiConfigError(
       "Gemini API key is not configured. Set GEMINI_API_KEY in the environment.",
     );

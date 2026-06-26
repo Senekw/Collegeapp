@@ -67,14 +67,18 @@ npm run dev             # http://localhost:3000
 ### Enable the AI (optional but it's the whole point)
 
 The app runs **without** a key — scoring/synthesis just return a friendly
-"add a key" message instead of crashing. To turn the AI on, paste your key into
-`.env.local` (gitignored):
+"add a key" message instead of crashing. To turn the AI on, either:
 
-```
-GEMINI_API_KEY=your_key_here
-```
+- **In the app:** open **Settings** in the sidebar and paste your key (saved
+  server-side in your local DB; it overrides the env var and is the easiest
+  path for personal use), **or**
+- **Env file:** paste it into `.env.local` (gitignored) and restart the server:
+  ```
+  GEMINI_API_KEY=your_key_here
+  ```
 
-Get one at <https://aistudio.google.com/apikey>. Then: fill your **Profile** →
+Get one at <https://aistudio.google.com/apikey>. Either way the key stays
+server-side — it is never bundled into the browser. Then: fill your **Profile** →
 add a few **Activities** → **Score all** → **Recompute synthesis** → see your
 **Schools** realism bands, **Dashboard** spike + next moves, and **Résumé**.
 

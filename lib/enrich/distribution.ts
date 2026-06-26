@@ -9,7 +9,8 @@
 
 import type { AdmitDistribution } from "@prisma/client";
 
-import { getDeepModel, getGeminiApiKey } from "@/lib/constants";
+import { getDeepModel } from "@/lib/constants";
+import { resolveGeminiApiKey } from "@/lib/settings";
 import { prisma } from "@/lib/db";
 import {
   ConfidenceSchema,
@@ -78,7 +79,7 @@ export async function resolveDistributionForSchool(args: {
     if (recent && !force) return recent;
   }
 
-  if (!getGeminiApiKey()) {
+  if (!(await resolveGeminiApiKey())) {
     throw new GeminiConfigError(
       "Gemini API key is not configured. Set GEMINI_API_KEY in the environment.",
     );
